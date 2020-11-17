@@ -5,43 +5,41 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
+	// "os"
 	"time"
 	"reflect"
 	// "strconv"
 	"encoding/json"
+	
+	
 
 	"github.com/gorilla/mux"
 	// "github.com/jackc/pgx/v4"
-	pool "github.com/jackc/pgx/v4/pgxpool"
+	// pool "github.com/jackc/pgx/v4/pgxpool"
 	"github.com/joho/godotenv"
-	"golang.org/x/crypto/bcrypt"
+	// "golang.org/x/crypto/bcrypt"
+	helper "go_rest_api/helper"  // for hash bcrypt password
+	controllers "go_rest_api/controllers"
+	db "go_rest_api/db"
+	
 )
 
 type User struct {	
-	Id  		int32   	`json:"id"` //,omitempty
-	Username 	string    	`json:"username"` //,omitempty
-	Password	string    	`json:"password"` //,omitempty
-	Authority 	int32    	`json:"authority"` //,omitempty
-	Created_on	time.Time    `json:"created_on"` //,omitempty
+	Id  		int32   		  `json:"id"` //,omitempty
+	Username 	string    		  `json:"username"` //,omitempty
+	Password	string    		  `json:"password"` //,omitempty
+	Authority 	int32    		  `json:"authority"` //,omitempty
+	Created_on	time.Time    	  `json:"created_on"` //,omitempty
 	Last_login	*time.Time		  `json:"last_login"` //,omitempty
 }
 
-func dbConnect() *pool.Pool {
-	conn, err := pool.Connect(context.Background(), os.Getenv( "ELEPHANT_URL" ))
-	if err!= nil {
-		log.Fatal(err)
-	}
-	log.Println(reflect.TypeOf(conn))
-	return conn
-}
 
 
 func get(w http.ResponseWriter,r *http.Request){
 	
 	w.WriteHeader(http.StatusOK)
 	
-	conn := dbConnect();
+	conn := db.Connect();
 	defer conn.Close()
 	var u User
 	var arr_user []User
@@ -63,27 +61,29 @@ func get(w http.ResponseWriter,r *http.Request){
 	}
 	
 	fmt.Println(u)
+	
 	type Response struct {
 		Message string   `json:"message"`
 		Status int		  `json:"status"`
 		Data []User		`json:"data"`
 	}
+
 	var resp Response
 	resp.Message = "Success Query GET ALL"
 	resp.Status = 200
 	resp.Data = arr_user
+
 	w.Header().Set("Content-Type","application/json")
 	json.NewEncoder(w).Encode(resp)
 
-	// w.Write([]byte (`{"message":"method GET being called"}`) )
 
 }
 
-func getById (w http.ResponseWriter, r *http.Request){
+func getById(w http.ResponseWriter, r *http.Request){
 	params := mux.Vars(r)
 	id := params["id"]
 
-	conn := dbConnect();
+	conn := db.Connect();
 	defer conn.Close()
 
 	var u User
@@ -100,13 +100,13 @@ func getById (w http.ResponseWriter, r *http.Request){
 }
 
 func post(w http.ResponseWriter,r *http.Request){
-	conn := dbConnect();
+	conn := db.Connect();
 	defer conn.Close()
 
 	type Response struct {
 		Message string  `json:"message"`
 		Status int32	`json:"status"`
-		New_Id int32		`json:"new_id`
+		NewId int32	`json:"new_id`
 	}
 
 	err := r.ParseMultipartForm(4096)
@@ -119,7 +119,7 @@ func post(w http.ResponseWriter,r *http.Request){
 	authority := r.FormValue("authority")
 	created_on := time.Now()
 	
-	password, err := HashPassword(passwordRaw)
+	password, err := helper.HashPassword(passwordRaw)
 	if err!=nil {
 		log.Fatal(err)
 	}
@@ -140,7 +140,7 @@ func post(w http.ResponseWriter,r *http.Request){
 	var resp Response
 	resp.Message = "success"
 	resp.Status = 201
-	resp.New_Id = id
+	resp.NewId = id
 
 
 	w.Header().Set("Content-Type","application/json")
@@ -163,7 +163,7 @@ func put(w http.ResponseWriter,r *http.Request){
 	passwordRaw := r.FormValue("password")
 	authority := r.FormValue("authority")
 
-	password, err := HashPassword(passwordRaw)
+	password, err := helper.HashPassword(passwordRaw)
 	if err!=nil {
 		log.Fatal(err)
 	}
@@ -176,7 +176,7 @@ func put(w http.ResponseWriter,r *http.Request){
 		RowAffected int64 `json:"row_affected"`
 	}
 
-	conn := dbConnect();
+	conn := db.Connect();
 	defer conn.Close()
 
 	var sqlStatement string=`
@@ -210,7 +210,8 @@ func remove(w http.ResponseWriter,r *http.Request){
 		Status int32	`json:"status"`
 		RowAffected int64 `json:"row_affected"`
 	}
-	conn := dbConnect();
+
+	conn := db.Connect();
 	defer conn.Close()
 
 	// var row_affected int64 = 0
@@ -229,34 +230,16 @@ func remove(w http.ResponseWriter,r *http.Request){
 	resp.Status = 200
 	resp.RowAffected = resDel.RowsAffected() 
 
-
 	w.Header().Set("Content-Type","application/json")
 	w.WriteHeader(http.StatusAccepted)
 	json.NewEncoder(w).Encode(resp)
-	// w.Write([ ]byte ( `{"message":"method DELETE being called"}`))
 }
 
-func params(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	pathParams := mux.Vars(r)
-	id := pathParams["id"]
-	fmt.Println(id)
-}
 
 func patch(w http.ResponseWriter,r *http.Request){
 	w.Header().Set("Content-Type","application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write([ ]byte (`{"message":"method PATCH being called blablablabl"}`))
-}
-
-func HashPassword(password string) (string, error) {
-    bytes, err := bcrypt.GenerateFromPassword([]byte(password), 11)
-    return string(bytes), err
-}
-
-func CheckPasswordHash(password, hash string) bool {
-	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
-    return err==nil // still dunno what is this
+	w.Write([ ]byte (`{"message":"method PATCH being called"}`))
 }
 
 
@@ -267,15 +250,14 @@ func main(){
 		log.Fatal("Error loading .env file")
 	}
 
-	// log.Println(dbConnect())
-
 	r:= mux.NewRouter()
 	api := r.PathPrefix("/api/v1").Subrouter()
-	api.HandleFunc("/",get).Methods(http.MethodGet)
-	api.HandleFunc("/{id}/", getById).Methods("GET")
-	api.HandleFunc("/",post).Methods(http.MethodPost)
-	api.HandleFunc("/{id}/", put).Methods(http.MethodPut)
-	api.HandleFunc("/{id}/", remove).Methods(http.MethodDelete)
-	api.HandleFunc("/", patch).Methods(http.MethodPatch)
+	api.HandleFunc("/user/",get).Methods(http.MethodGet)
+	api.HandleFunc("/user/{id}/", getById).Methods(http.MethodGet)
+	api.HandleFunc("/user/",post).Methods(http.MethodPost)
+	api.HandleFunc("/user/{id}/", put).Methods(http.MethodPut)
+	api.HandleFunc("/user/{id}/", remove).Methods(http.MethodDelete)
+	// api.HandleFunc("/user", patch).Methods(http.MethodPatch)
+	api.HandleFunc("/login/", controllers.LoginUser).Methods(http.MethodPost)
 	log.Fatal(http.ListenAndServe(":9090", r))
 }
