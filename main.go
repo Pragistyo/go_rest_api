@@ -21,28 +21,24 @@ import (
 	helper "go_rest_api/helper"  // for hash bcrypt password
 	controllers "go_rest_api/controllers"
 	db "go_rest_api/db"
+	models "go_rest_api/models"
+	
 	
 )
-
-type User struct {	
-	Id  		int32   		  `json:"id"` //,omitempty
-	Username 	string    		  `json:"username"` //,omitempty
-	Password	string    		  `json:"password"` //,omitempty
-	Authority 	int32    		  `json:"authority"` //,omitempty
-	Created_on	time.Time    	  `json:"created_on"` //,omitempty
-	Last_login	*time.Time		  `json:"last_login"` //,omitempty
-}
-
 
 
 func get(w http.ResponseWriter,r *http.Request){
 	
 	w.WriteHeader(http.StatusOK)
 	
-	conn := db.Connect();
+	conn := db.Connect()
 	defer conn.Close()
-	var u User
-	var arr_user []User
+
+	var u models.User
+	var arr_user []models.User
+	
+	log.Println( reflect.TypeOf( u ) )
+	log.Println( reflect.TypeOf( arr_user ) )
 
 	rows, err := conn.Query(context.Background(), "SELECT * FROM users ORDER BY id ASC")
 	if err != nil {
@@ -63,9 +59,9 @@ func get(w http.ResponseWriter,r *http.Request){
 	fmt.Println(u)
 	
 	type Response struct {
-		Message string   `json:"message"`
-		Status int		  `json:"status"`
-		Data []User		`json:"data"`
+		Message string   			`json:"message"`
+		Status int		            `json:"status"`
+		Data []models.User  `json:"data"`
 	}
 
 	var resp Response
@@ -86,7 +82,7 @@ func getById(w http.ResponseWriter, r *http.Request){
 	conn := db.Connect();
 	defer conn.Close()
 
-	var u User
+	var u  models.User
 	row := conn.QueryRow( context.Background(), "SELECT * FROM Users WHERE id=$1",   id)
 
 	err := row.Scan(&u.Id, &u.Username, & u.Password, &u.Authority, &u.Created_on, &u.Last_login )
@@ -257,7 +253,15 @@ func main(){
 	api.HandleFunc("/user/",post).Methods(http.MethodPost)
 	api.HandleFunc("/user/{id}/", put).Methods(http.MethodPut)
 	api.HandleFunc("/user/{id}/", remove).Methods(http.MethodDelete)
+
 	// api.HandleFunc("/user", patch).Methods(http.MethodPatch)
+
 	api.HandleFunc("/login/", controllers.LoginUser).Methods(http.MethodPost)
+	api.HandleFunc("/verifyToken/", controllers.MiddlewareJWTAuthorization( controllers.HandlerUserTokenData ))
+
+
 	log.Fatal(http.ListenAndServe(":9090", r))
 }
+
+
+

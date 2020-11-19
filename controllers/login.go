@@ -1,33 +1,24 @@
 package controllers
 
-import(
+import (
 	"context"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"reflect"
+
 	// "reflect"
 	"io/ioutil"
 	"time"
 
-
 	"encoding/json"
-	jwt "github.com/dgrijalva/jwt-go"
-	helper "go_rest_api/helper"  // for hashing bcrypt
 	db "go_rest_api/db"
+	helper "go_rest_api/helper" // for hashing bcrypt
 	models "go_rest_api/models"
 
+	jwt "github.com/dgrijalva/jwt-go"
 )
-
-
-type User struct {	
-	Id  		int32   		  `json:"id"` //,omitempty
-	Username 	string    		  `json:"username"` //,omitempty
-	Password	string    		  `json:"password"` //,omitempty
-	Authority 	int32    		  `json:"authority"` //,omitempty
-	Created_on	time.Time    	  `json:"created_on"` //,omitempty
-	Last_login	*time.Time		  `json:"last_login"` //,omitempty
-}
 
 
 
@@ -64,7 +55,7 @@ func LoginUser(w http.ResponseWriter,r *http.Request){
 	defer conn.Close()
 
 	//checking user exist
-	var u User
+	var u models.User
 	row := conn.QueryRow( context.Background(), 
 							"SELECT id, username, password, authority FROM Users WHERE username=$1",   
 							requestBody.Username )
@@ -91,16 +82,41 @@ func LoginUser(w http.ResponseWriter,r *http.Request){
 	if !matchPass {
 		w.WriteHeader(http.StatusUnauthorized)
 		json.NewEncoder(w).Encode(models.GetLoginResponse( " password not match ", 401, "-" ) )
+		// type M map[string]interface{}
+		// respString, _ := json.Marshal( M{ "Message": " password not match ", "Status": 401, "Token": "-" } )
+		// w.Write([]byte respString)
 		return
 	}
-	
 
-	sign := jwt.New(jwt.GetSigningMethod("HS256"))
-	claims := sign.Claims.(jwt.MapClaims)
-	claims["id"]= u.Id
-	claims["username"]=u.Username
-	claims["authority"]=u.Authority
-	token, err := sign.SignedString([]byte( os.Getenv( "SECRET_KEY_JWT" ) ))
+	var APPLICATION_NAME = "go_rest_api_App_v1.0"
+	// var LOGIN_EXPIRATION_DURATION = time.Duration(1) * time.Hour
+	var LOGIN_EXPIRATION_DURATION = time.Minute * 30
+	var JWT_SIGNING_METHOD = jwt.SigningMethodHS256
+	var JWT_SIGNATURE_KEY = []byte( os.Getenv( "SECRET_KEY_JWT" ) )
+	log.Println( reflect.TypeOf(JWT_SIGNATURE_KEY))
+
+	type MyClaims struct {
+		jwt.StandardClaims
+		Id 			int32		`json:"id"`
+		Username	string		`json:"username"`
+		Authority	int32		`json:"authority"`
+	}
+
+	claims := MyClaims{
+		StandardClaims: jwt.StandardClaims{
+			Issuer: APPLICATION_NAME,
+			ExpiresAt: time.Now().Add(LOGIN_EXPIRATION_DURATION).Unix(),
+		} ,
+		Id: u.Id,
+		Username: u.Username,
+		Authority: u.Authority,
+	}
+	sign := jwt.NewWithClaims(
+		JWT_SIGNING_METHOD,
+		claims,
+	)
+
+	token, err := sign.SignedString(JWT_SIGNATURE_KEY)
 
 	if err!= nil {
 		log.Println("Error make credential: ", err)
@@ -110,13 +126,10 @@ func LoginUser(w http.ResponseWriter,r *http.Request){
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader( http.StatusOK )
 
-	
-
 	body := models.GetLoginResponse (
-		"Hello world from chi!",
+		"Success Login!",
 		200,
-		"Authentication Bearer: "+token,
-		// Data:   requestBody,
+		"Bearer: "+token,
 	)
 
 	serializedBody, _ := json.Marshal(body)
