@@ -64,7 +64,7 @@ func LoginUser(w http.ResponseWriter,r *http.Request){
 	if err!=nil {
 		log.Println("Error in fetch user login: ", err)
 		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode( models.GetLoginResponse(   " user not found ", 404, "-" ) )
+		json.NewEncoder(w).Encode( models.GetLoginResponse(   " user not found ", 404, "-",0 ) )
 		return
 	}
 
@@ -79,12 +79,11 @@ func LoginUser(w http.ResponseWriter,r *http.Request){
 
 	fmt.Println(" ======== PASSWORD CHECKING MATCH ======== ")
 	fmt.Println("Match: ", matchPass)
+
 	if !matchPass {
+
 		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(models.GetLoginResponse( " password not match ", 401, "-" ) )
-		// type M map[string]interface{}
-		// respString, _ := json.Marshal( M{ "Message": " password not match ", "Status": 401, "Token": "-" } )
-		// w.Write([]byte respString)
+		json.NewEncoder(w).Encode(models.GetLoginResponse( " password not match ", 401, "-", 0 ) )
 		return
 	}
 
@@ -122,6 +121,21 @@ func LoginUser(w http.ResponseWriter,r *http.Request){
 		log.Println("Error make credential: ", err)
 		w.WriteHeader(http.StatusInternalServerError)
 	}
+	
+	//update login
+	var lastLogin time.Time
+	lastLogin = time.Now()
+
+	var sqlStatement string =`
+	UPDATE Users 
+	SET last_login =$1
+	WHERE id = $2
+	`
+	updLogin, err := conn.Exec(context.Background(), sqlStatement, lastLogin, u.Id)
+	if err!= nil {
+		log.Panic(err)
+	}
+
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader( http.StatusOK )
@@ -130,6 +144,7 @@ func LoginUser(w http.ResponseWriter,r *http.Request){
 		"Success Login!",
 		200,
 		"Bearer: "+token,
+		updLogin.RowsAffected(),
 	)
 
 	serializedBody, _ := json.Marshal(body)
@@ -139,14 +154,3 @@ func LoginUser(w http.ResponseWriter,r *http.Request){
 	// json.NewEncoder(w).Encode(resp)
 }
 
-func isLogin(){
-
-}
-
-func isAdmin(){
-
-}
-
-func isSuperUser(){
-
-}

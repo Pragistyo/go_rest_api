@@ -149,16 +149,14 @@ func VerifyToken(w http.ResponseWriter,r *http.Request,tokenString string)( jwt.
 func HandlerUserTokenData (w http.ResponseWriter, r *http.Request) {
 	
 	fmt.Println("======= HANDLER USER TOKEN DATA ======= ")
-	fmt.Println( r.Context() )
 	tokenData := r.Context().Value("tokenData").(jwt.MapClaims)
 	fmt.Println(tokenData)
-	fmt.Println(tokenData["username"].(string))
 	fmt.Println( reflect.TypeOf(tokenData))
 
 	fmt.Println("====== token info ====== ")
-	fmt.Println( reflect.TypeOf(tokenData["id"]))
-	fmt.Println( reflect.TypeOf(tokenData["username"]))
-	fmt.Println( reflect.TypeOf(tokenData["authority"]))
+	fmt.Println( tokenData["id"])
+	fmt.Println( tokenData["username"])
+	fmt.Println( tokenData["authority"])
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
@@ -169,5 +167,18 @@ func HandlerUserTokenData (w http.ResponseWriter, r *http.Request) {
 
 	w.Write([]byte (respString) )
 
+}
+
+
+func isLogin(){
 
 }
+
+func isAdmin(){
+
+}
+
+func isSuperUser(){
+
+}
+
